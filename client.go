@@ -15,3 +15,7 @@ func Connect(host string, port int) (net.Conn, error) {
 
 	return conn, err
 }
+
+func Ping(conn net.Conn) (string, error) {
+	return "", nil
+}
