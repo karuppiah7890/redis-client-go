@@ -13,7 +13,5 @@ func Connect(host string, port int) (net.Conn, error) {
 		return nil, fmt.Errorf("error connecting to %s: %v", redisHost, err)
 	}
 
-	conn.Close()
-
 	return conn, err
 }
