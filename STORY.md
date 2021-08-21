@@ -933,3 +933,263 @@ ok  	github.com/karuppiah7890/redis-client-go	0.378s
 yay! But yeah, I guess I did test the `net.Dial` feature. Lol. My bad. Hmm
 
 Best thing is, this kind of test is faster than running a redis and running the golang test. Atleast that's my guess. Not saying that running redis server would take too long, but this is too fast. Surely with redis I would need to install redis server or use a redis server docker image and run it and also ensure ports are exposed for the Docker container, and then run the golang tests. So... ;) All good, I guess!
+
+---
+
+I was just reading the Redis Request Response model
+
+https://redis.io/topics/protocol#request-response-model
+
+And then the RESP protocol description
+
+https://redis.io/topics/protocol#resp-protocol-description
+
+I guess the following are pretty important -
+
+```
+For Simple Strings the first byte of the reply is "+"
+For Errors the first byte of the reply is "-"
+For Integers the first byte of the reply is ":"
+For Bulk Strings the first byte of the reply is "$"
+For Arrays the first byte of the reply is "*"
+```
+
+I also read the https://redis.io/topics/protocol#resp-simple-strings section
+
+I'm planning to implement the `PING` command first, hmm. And run tests with an actual Redis server! :)
+
+Maybe use Testcontainers to run redis ;)
+
+https://duckduckgo.com/?t=ffab&q=testcontainers&ia=images
+
+https://github.com/testcontainers/
+
+I have used Testcontainers with Java before! - https://www.testcontainers.org/ , https://github.com/testcontainers/testcontainers-java
+
+There's testcontainers for Golang too! :D
+
+https://github.com/testcontainers/testcontainers-go
+
+https://golang.testcontainers.org/
+
+https://pkg.go.dev/github.com/testcontainers/testcontainers-go
+
+https://golang.testcontainers.org/quickstart/gotest/
+
+Perfect. There's a simple Redis example already
+
+https://golang.testcontainers.org/quickstart/gotest/#2-spin-up-redis
+
+I was just checking about the PING command
+
+```bash
+redis-client-go $ telnet localhost 6379
+Trying ::1...
+Connected to localhost.
+Escape character is '^]'.
+PING
++PONG
+^]
+telnet> Connection closed.
+redis-client-go $ printf "PING" | nc localhost 6379
+redis-client-go $ printf "PING\r\n" | nc localhost 6379
++PONG
+redis-client-go $ 
+```
+
+Looks like I need to send `PING\r\n` and then look for `+PONG\r\n` and strip out the `+` and `\r\n` as mentioned in https://redis.io/topics/protocol#resp-simple-strings
+
+Hmm. I'm wondering how to do this whole thing. Hmm. Maybe I'll start with something simple. Hmm
+
+Just a `Ping` function
+
+Damn. I was just changing some code. I was running actual Redis server locally, and I was running the tests and it kept failing and I was like "why isn't it working?" and it gave a weird error
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.130s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.097s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.113s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.097s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
+
+It should have said that it's not able to bind to the port 6379 as it's already in use. Instead it said `error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection`. Hmm. Weird.
+
+Maybe I could use random ports ;)
+
+`port := rand.Intn(65536)` 
+
+Weird that it uses the same random number though. Hmm, like -
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+^[[B=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
+
+I tried to use `rand.Seed(10)` to simply see what it does and if it helps, I got a different result but it also failed my tests O.o
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:46190
+    client_test.go:30: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:46190: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.343s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:46190
+    client_test.go:30: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:46190: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.104s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:46190
+    client_test.go:30: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:46190: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.100s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:33313
+error accepting connections: accept tcp 127.0.0.1:33313: use of closed network connection
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.382s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
+
+It passed later when I commented it out. Hmm. I guess I could do away with some other port number or some other way of testing stuff, till I understand what's going on over here. Hmm. For now just a random port I guess
+
+I think I need a way to ensure that a port is not open in my local before using it. Atleast in my bash, just to check if something else caused failures like the above
+
+https://duckduckgo.com/?t=ffab&q=macos+open+port&ia=web&iax=qa
+
+https://duckduckgo.com/?q=macos+open+port+check&t=ffab&ia=web
+
+https://www.unixfu.ch/show-open-ports-on-mac/
+
+```bash
+lsof -i -P | grep -i "listen"
+```
+
+Cool! That works! I just tried to run a Redis server and use the above command and it worked!
+
+```bash
+$ lsof -i -P | grep -i "listen"
+redis-ser 20925 karuppiahn    6u  IPv4 0x762d5b6bd440f2b5      0t0  TCP *:6379 (LISTEN)
+redis-ser 20925 karuppiahn    7u  IPv6 0x762d5b6bcb84d18d      0t0  TCP *:6379 (LISTEN)
+```
+
+But it was a slow command too! Took a lot of time. Hmm
+
+`ripgrep` / `rg` struggled too and took lot of time - like 3-5 seconds to run that command, hmm
+
+```bash
+$ lsof -i -P | rg -i "listen"
+redis-ser 21656 karuppiahn    6u  IPv4 0x762d5b6bd3fb0705      0t0  TCP *:6379 (LISTEN)
+redis-ser 21656 karuppiahn    7u  IPv6 0x762d5b6bcb84d18d      0t0  TCP *:6379 (LISTEN)
+```
