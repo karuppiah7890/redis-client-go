@@ -100,3 +100,836 @@ That's that! I guess I'll get started by reading some RESP stuff! And using `tel
 
 I'll also check about `AUTH` command and auth stuff, and also about "persisting connections" ;)
 
+I'm checking about RESP now
+
+https://duckduckgo.com/?t=ffab&q=resp+protocol&ia=web
+
+https://github.com/antirez/RESP3
+
+https://redis.io/topics/protocol
+
+So, it's a TCP based protocol. Of course. https://redis.io/topics/protocol#networking-layer
+
+I'll have to create a simple TCE connection to the Redis Server first. Hmm
+
+```bash
+redis-client-go $ gst
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	client.go
+	client_test.go
+
+nothing added to commit but untracked files present (use "git add" to track)
+redis-client-go $ git remote -v
+origin	git@github.com:karuppiah7890/redis-client-go.git (fetch)
+origin	git@github.com:karuppiah7890/redis-client-go.git (push)
+redis-client-go $ go mod init github.com/karuppiah7890/redis-client-go
+go: creating new go.mod: module github.com/karuppiah7890/redis-client-go
+go: to add module requirements and sums:
+	go mod tidy
+redis-client-go $ gst
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	client.go
+	client_test.go
+	go.mod
+
+nothing added to commit but untracked files present (use "git add" to track)
+redis-client-go $ go mod tidy
+redis-client-go $ gst
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	client.go
+	client_test.go
+	go.mod
+
+nothing added to commit but untracked files present (use "git add" to track)
+redis-client-go $ go mod tidy -v
+redis-client-go $ gst
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	client.go
+	client_test.go
+	go.mod
+
+nothing added to commit but untracked files present (use "git add" to track)
+redis-client-go $ code .
+redis-client-go $ 
+```
+
+I'm starting to write tests
+
+```bash
+redis-client-go $ go test -v
+=== RUN   TestConnect
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.376s
+redis-client-go $ go test -v ./...
+=== RUN   TestConnect
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.092s
+```
+
+It doesn't check anything as of now
+
+I'm just writing a function called as `Connect` for now, to connect to a TCP server running at a host and port
+
+```go
+package client
+
+func Connect(host string, port int) {
+
+}
+```
+
+```go
+package client_test
+
+import (
+	"testing"
+
+	client "github.com/karuppiah7890/redis-client-go"
+)
+
+func TestConnect(t *testing.T) {
+	client.Connect("localhost", 6379)
+}
+```
+
+---
+
+Now I'm making it a bit better
+
+```go
+package client_test
+
+import (
+	"testing"
+
+	client "github.com/karuppiah7890/redis-client-go"
+)
+
+func TestConnect(t *testing.T) {
+	err := client.Connect("localhost", 6379)
+	if err != nil {
+		t.Errorf("Connection to Redis Server failed: %v", err)
+	}
+}
+```
+
+```go
+package client
+
+func Connect(host string, port int) error {
+	return nil
+}
+```
+
+I also added a `Makefile` ! :)
+
+```Makefile
+test:
+	go test -v ./...
+```
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.375s
+```
+
+---
+
+Next I need to write a dummy TCP server for the tests
+
+https://duckduckgo.com/?t=ffab&q=golang+tcp+server&ia=web
+
+https://duckduckgo.com/?t=ffab&q=golang+tcp&ia=web
+
+https://duckduckgo.com/?t=ffab&q=golang+net+tcp&ia=web
+
+https://pkg.go.dev/net
+
+https://pkg.go.dev/net#Dial
+
+Lot of details. From what I read, I think I can use `tcp` network for both IPv4 and IPv6. I think IPv4 is good for now as I'm not gonna test all the IP version protocol stuff. I can dial to my local too :) with just ":80" etc I think
+
+https://coderwall.com/p/wohavg/creating-a-simple-tcp-server-in-go
+
+```go
+package main
+
+import (
+    "fmt"
+    "net"
+    "os"
+)
+
+const (
+    CONN_HOST = "localhost"
+    CONN_PORT = "3333"
+    CONN_TYPE = "tcp"
+)
+
+func main() {
+    // Listen for incoming connections.
+    l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+    if err != nil {
+        fmt.Println("Error listening:", err.Error())
+        os.Exit(1)
+    }
+    // Close the listener when the application closes.
+    defer l.Close()
+    fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
+    for {
+        // Listen for an incoming connection.
+        conn, err := l.Accept()
+        if err != nil {
+            fmt.Println("Error accepting: ", err.Error())
+            os.Exit(1)
+        }
+        // Handle connections in a new goroutine.
+        go handleRequest(conn)
+    }
+}
+
+// Handles incoming requests.
+func handleRequest(conn net.Conn) {
+  // Make a buffer to hold incoming data.
+  buf := make([]byte, 1024)
+  // Read the incoming connection into the buffer.
+  reqLen, err := conn.Read(buf)
+  if err != nil {
+    fmt.Println("Error reading:", err.Error())
+  }
+  // Send a response back to person contacting us.
+  conn.Write([]byte("Message received."))
+  // Close the connection when you're done with it.
+  conn.Close()
+}
+```
+
+I made some modifications and tried to run the test. Funnily I made the test block, lol
+
+```go
+package internal
+
+import (
+	"fmt"
+	"net"
+)
+
+type MockRedisServer struct {
+	host        string
+	port        int
+	server_type string
+	listener    net.Listener
+}
+
+func NewMockRedisServer(host string, port int) *MockRedisServer {
+	return &MockRedisServer{
+		host:        host,
+		port:        port,
+		server_type: "tcp",
+	}
+}
+
+func (server *MockRedisServer) Start() error {
+	// Listen for incoming connections.
+	l, err := net.Listen(server.server_type, fmt.Sprintf("%s:%d", server.host, server.port))
+	if err != nil {
+		return fmt.Errorf("error listening for connections: %v", err.Error())
+	}
+	fmt.Printf("Listening at %s:%d\n", server.host, server.port)
+    for {
+        // Listen for an incoming connection.
+        conn, err := l.Accept()
+        if err != nil {
+            return fmt.Errorf("error accepting connections: %v", err.Error())
+        }
+        // Handle connections in a new goroutine.
+        go handleRequest(conn)
+    }
+
+	return nil
+}
+
+func (server *MockRedisServer) Stop() error {
+	// Close the listener
+	err := server.listener.Close()
+	if err != nil {
+		return fmt.Errorf("error closing listener: %v", err.Error())
+	}
+	return nil
+}
+
+// Handles incoming requests.
+func handleRequest(conn net.Conn) {
+	conn.Close()
+}
+```
+
+```go
+package client_test
+
+import (
+	"testing"
+
+	client "github.com/karuppiah7890/redis-client-go"
+	"github.com/karuppiah7890/redis-client-go/internal"
+)
+
+func TestConnect(t *testing.T) {
+	host := "localhost"
+	port := 6379
+	server := internal.NewMockRedisServer(host, port)
+	err := server.Start()
+	if err != nil {
+		t.Errorf("Starting mock Redis Server failed: %v", err)
+	}
+	defer server.Stop();
+
+	err = client.Connect(host, port)
+	if err != nil {
+		t.Errorf("Connection to Redis Server failed: %v", err)
+	}
+}
+```
+
+I avoided the errors from `server.Stop()` actually
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+^C=== RUN   TestConnect
+Listening at localhost:6379
+FAIL	github.com/karuppiah7890/redis-client-go	5.822s
+make: *** [test] Error 1
+
+redis-client-go $ 
+```
+
+Funny thing, but I finally changed the blocking call like this -
+
+```go
+func (server *MockRedisServer) Start() error {
+	// Listen for incoming connections.
+	l, err := net.Listen(server.server_type, fmt.Sprintf("%s:%d", server.host, server.port))
+	if err != nil {
+		return fmt.Errorf("error listening for connections: %v", err.Error())
+	}
+	fmt.Printf("Listening at %s:%d\n", server.host, server.port)
+	go func() {
+		for {
+			// Listen for an incoming connection.
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Printf("error accepting connections: %v", err.Error())
+			}
+			// Handle connections in a new goroutine.
+			go handleRequest(conn)
+		}
+	}()
+
+	return nil
+}
+```
+
+With goroutines
+
+Now, the problem was -
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+--- FAIL: TestConnect (0.00s)
+panic: runtime error: invalid memory address or nil pointer dereference [recovered]
+	panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x28 pc=0x114966e]
+
+goroutine 19 [running]:
+testing.tRunner.func1.2(0x11673c0, 0x128ffc0)
+	/usr/local/Cellar/go/1.16.6/libexec/src/testing/testing.go:1143 +0x332
+testing.tRunner.func1(0xc000186600)
+	/usr/local/Cellar/go/1.16.6/libexec/src/testing/testing.go:1146 +0x4b6
+panic(0x11673c0, 0x128ffc0)
+	/usr/local/Cellar/go/1.16.6/libexec/src/runtime/panic.go:965 +0x1b9
+github.com/karuppiah7890/redis-client-go/internal.(*MockRedisServer).Stop(0xc000060f28, 0x0, 0x0)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:47 +0x2e
+github.com/karuppiah7890/redis-client-go_test.TestConnect(0xc000186600)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/client_test.go:24 +0x13f
+testing.tRunner(0xc000186600, 0x119d690)
+	/usr/local/Cellar/go/1.16.6/libexec/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/Cellar/go/1.16.6/libexec/src/testing/testing.go:1238 +0x2b3
+FAIL	github.com/karuppiah7890/redis-client-go	0.341s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ 
+```
+
+I didn't assign proper value to the `listener` field in `MockRedisServer`. My bad
+
+I fixed it with one line `server.listener = l`
+
+```go
+func (server *MockRedisServer) Start() error {
+	// Listen for incoming connections.
+	l, err := net.Listen(server.server_type, fmt.Sprintf("%s:%d", server.host, server.port))
+	if err != nil {
+		return fmt.Errorf("error listening for connections: %v", err.Error())
+	}
+	server.listener = l
+	fmt.Printf("Listening at %s:%d\n", server.host, server.port)
+	go func() {
+		for {
+			// Listen for an incoming connection.
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Printf("error accepting connections: %v", err.Error())
+			}
+			// Handle connections in a new goroutine.
+			go handleRequest(conn)
+		}
+	}()
+
+	return nil
+}
+```
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+--- PASS: TestConnect (0.00s)
+PASS
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionok  	github.com/karuppiah7890/redis-client-go	0.502s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
+
+Lot of errors, hmm
+
+But tests passed ;) Lol. Well. I just realized that the actual code doesn't do much. Hmm. 
+
+I also need to write a better test which fails, which I can do only if I get some data from the `MockRedisServer` whether any connections were received, hmm
+
+I added a field called `connections_received` to the mock server and did this - `server.connections_received++` -
+
+```go
+type MockRedisServer struct {
+	host                 string
+	port                 int
+	server_type          string
+	listener             net.Listener
+	connections_received int
+}
+
+func (server *MockRedisServer) Start() error {
+	// Listen for incoming connections.
+	l, err := net.Listen(server.server_type, fmt.Sprintf("%s:%d", server.host, server.port))
+	if err != nil {
+		return fmt.Errorf("error listening for connections: %v", err.Error())
+	}
+	server.listener = l
+	fmt.Printf("Listening at %s:%d\n", server.host, server.port)
+	go func() {
+		for {
+			// Listen for an incoming connection.
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Printf("error accepting connections: %v", err.Error())
+			}
+			server.connections_received++
+			// Handle connections in a new goroutine.
+			go handleRequest(conn)
+		}
+	}()
+
+	return nil
+}
+
+func (server *MockRedisServer) NumberOfConnectionsReceived() int {
+	return server.connections_received;
+}
+```
+
+And wrote this in the test -
+
+```go
+numberOfConnectionsReceived := server.NumberOfConnectionsReceived()
+
+if numberOfConnectionsReceived != 1 {
+    t.Errorf("Expected 1 connection to be received by the Redis Server but got: %v", numberOfConnectionsReceived)
+}
+```
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection--- FAIL: TestConnect (0.00s)
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionerror accepting connections: accept tcp 127.0.0.1:6379: use of closed network connectionpanic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x18 pc=0x11497a2]
+
+goroutine 23 [running]:
+github.com/karuppiah7890/redis-client-go/internal.handleRequest(0x0, 0x0)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:63 +0x22
+created by github.com/karuppiah7890/redis-client-go/internal.(*MockRedisServer).Start.func1
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:41 +0x51
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x18 pc=0x11497a2]
+
+goroutine 26 [running]:
+github.com/karuppiah7890/redis-client-go/internal.handleRequest(0x0, 0x0)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:63 +0x22
+created by github.com/karuppiah7890/redis-client-go/internal.(*MockRedisServer).Start.func1
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:41 +0x51
+FAIL	github.com/karuppiah7890/redis-client-go	0.296s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ 
+```
+
+Looks like there are some errors, hmm
+
+```bash
+goroutine 23 [running]:
+github.com/karuppiah7890/redis-client-go/internal.handleRequest(0x0, 0x0)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:63 +0x22
+created by github.com/karuppiah7890/redis-client-go/internal.(*MockRedisServer).Start.func1
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:41 +0x51
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x18 pc=0x11497a2]
+
+goroutine 26 [running]:
+github.com/karuppiah7890/redis-client-go/internal.handleRequest(0x0, 0x0)
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:63 +0x22
+created by github.com/karuppiah7890/redis-client-go/internal.(*MockRedisServer).Start.func1
+	/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:41 +0x51
+```
+
+Good thing is, test is also failing! :)
+
+```bash
+FAIL	github.com/karuppiah7890/redis-client-go	0.296s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+```
+
+and it says 
+
+`client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0`
+
+But yeah, it's all too cluttered. Hmm
+
+Let's look at the gorouting errors once. Lines 63 and 41
+
+`/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:63`
+
+`/Users/karuppiahn/projects/github.com/karuppiah7890/redis-client-go/internal/mock_redis_server.go:41`
+
+Ahh. I found out the error. Hmm
+
+The listen error passes through and since there's a `for` loop, it goes on and on and on again and again, hmm
+
+The issue being here
+
+```go
+go func() {
+    for {
+        // Listen for an incoming connection.
+        conn, err := l.Accept()
+        if err != nil {
+            fmt.Printf("error accepting connections: %v", err.Error())
+        }
+        server.connections_received++
+        // Handle connections in a new goroutine.
+        go handleRequest(conn)
+    }
+}()
+```
+
+Note how the error is not caught and stopped
+
+```go
+if err != nil {
+    fmt.Printf("error accepting connections: %v", err.Error())
+}
+```
+
+It's weird that the connection count didn't increase though, hmm. I mean, the error didn't stop the processing. Maybe I read the value too early? I don't know. Anyways.
+
+Let's fix this! :D
+
+Oh. Now I understand what's going on. The `Accept` errors out because the test closes the server very fast and after closing, the `Accept` errors out saying - `error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection`
+
+I just added another field called `running` in the Server. If the server isn't running, the listening loop will stop
+
+```go
+package internal
+
+import (
+	"fmt"
+	"net"
+)
+
+type MockRedisServer struct {
+	host                 string
+	port                 int
+	server_type          string
+	listener             net.Listener
+	connections_received int
+	running              bool
+}
+
+func NewMockRedisServer(host string, port int) *MockRedisServer {
+	return &MockRedisServer{
+		host:        host,
+		port:        port,
+		server_type: "tcp",
+		running:     false,
+	}
+}
+
+func (server *MockRedisServer) Start() error {
+	// Listen for incoming connections.
+	l, err := net.Listen(server.server_type, fmt.Sprintf("%s:%d", server.host, server.port))
+	if err != nil {
+		return fmt.Errorf("error listening for connections: %v", err.Error())
+	}
+	server.listener = l
+	fmt.Printf("Listening at %s:%d\n", server.host, server.port)
+	server.running = true
+	go func() {
+		for server.running {
+			// Listen for an incoming connection.
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Printf("error accepting connections: %v\n", err.Error())
+				continue
+			}
+			server.connections_received++
+			// Handle connections in a new goroutine.
+			go handleRequest(conn)
+		}
+	}()
+
+	return nil
+}
+
+func (server *MockRedisServer) NumberOfConnectionsReceived() int {
+	return server.connections_received
+}
+
+func (server *MockRedisServer) Stop() error {
+	// Close the listener
+	err := server.listener.Close()
+	if err != nil {
+		return fmt.Errorf("error closing listener: %v", err.Error())
+	}
+	return nil
+}
+
+// Handles incoming requests.
+func handleRequest(conn net.Conn) {
+	conn.Close()
+}
+```
+
+If there are errors in acception connections, I just print and continue. I also added new lines to the error logs
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+FAIL
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+FAIL	github.com/karuppiah7890/redis-client-go	0.362s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ 
+```
+
+Cool. Lot of errors, hmm
+
+Oops. I forgot to assign `server.running = false` when `Stop()` is called
+
+```go
+func (server *MockRedisServer) Stop() error {
+	server.running = false
+	// Close the listener
+	err := server.listener.Close()
+	if err != nil {
+		return fmt.Errorf("error closing listener: %v", err.Error())
+	}
+	return nil
+}
+```
+
+Done
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+    client_test.go:28: Expected 1 connection to be received by the Redis Server but got: 0
+error accepting connections: accept tcp 127.0.0.1:6379: use of closed network connection
+--- FAIL: TestConnect (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	0.343s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ 
+```
+
+There is still one error out there, hmm. I'm wondering how to do some graceful shutdown like stuff, hmm. Not easy. I did think about using channels, instead of all these fields. Hmm. Maybe this is okay for now. Hmm
+
+The current server has been written in such a way that it can accept many connections from single or multiple clients. I guess this is okay and cool. However I'll be working with more tests soon. So. ;) But yeah, it's not gonna be easy to maintain this mock server. Lol. Hmm. I'm wondering how this is all gonna work. I could just an Actual Redis Server I guess. Hmm. I'm not sure how I'll verify if the client actually connected to it, hmm. I mean, I could simple check if there are no errors. Or just leave it. I mean...wait. This is kind of like me testing the `net` package which does `Dial`. RIGHT. LOL. Hmm. Anyways. I think I'm just going to try to get this over with and think more on the testing strategy. Hmm. Or else I might end up writing a Redis Server, in the name of a mock. I could use actual Redis Server too, and I did plan to use it anyway, like in integration tests. So yeah. Let's see. I guess even the current tests are like integration tests, but yeah, it's using a mock server, but it's still a running server, and checks the integration between the client and server, currently there's not much, but later, when the protocol is implemented, it would be testing quite some elaborate stuff, than just simple small units. Hmm
+
+Cool. I finally implemented a basic connection in the client side
+
+```go
+package client
+
+import (
+	"fmt"
+	"net"
+)
+
+func Connect(host string, port int) error {
+	redisHost := fmt.Sprintf("%s:%v", host, port)
+
+	conn, err := net.Dial("tcp", redisHost)
+	if err != nil {
+		return fmt.Errorf("error connecting to %s: %v", redisHost, err)
+	}
+
+	conn.Close()
+
+	return err
+}
+```
+
+and the test worked!!
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+Listening at localhost:6379
+--- PASS: TestConnect (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	0.378s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+```
+
+yay! But yeah, I guess I did test the `net.Dial` feature. Lol. My bad. Hmm
+
+Best thing is, this kind of test is faster than running a redis and running the golang test. Atleast that's my guess. Not saying that running redis server would take too long, but this is too fast. Surely with redis I would need to install redis server or use a redis server docker image and run it and also ensure ports are exposed for the Docker container, and then run the golang tests. So... ;) All good, I guess!
