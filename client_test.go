@@ -17,7 +17,7 @@ func TestConnect(t *testing.T) {
 	}
 	defer server.Stop()
 
-	err = client.Connect(host, port)
+	_, err = client.Connect(host, port)
 	if err != nil {
 		t.Errorf("Connection to Redis Server failed: %v", err)
 	}

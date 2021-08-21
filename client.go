@@ -5,15 +5,15 @@ import (
 	"net"
 )
 
-func Connect(host string, port int) error {
+func Connect(host string, port int) (net.Conn, error) {
 	redisHost := fmt.Sprintf("%s:%v", host, port)
 
 	conn, err := net.Dial("tcp", redisHost)
 	if err != nil {
-		return fmt.Errorf("error connecting to %s: %v", redisHost, err)
+		return nil, fmt.Errorf("error connecting to %s: %v", redisHost, err)
 	}
 
 	conn.Close()
 
-	return err
+	return conn, err
 }
