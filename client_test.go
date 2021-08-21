@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"math/rand"
 	"testing"
 
 	client "github.com/karuppiah7890/redis-client-go"
@@ -9,7 +10,7 @@ import (
 
 func TestConnect(t *testing.T) {
 	host := "localhost"
-	port := 6379
+	port := rand.Intn(65536)
 	server := internal.NewMockRedisServer(host, port)
 	err := server.Start()
 	if err != nil {
