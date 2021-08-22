@@ -2381,3 +2381,114 @@ redis-client-go $
 ```
 
 It does say `+PONG` :D
+
+---
+
+I was actually wondering about the read buffer size I was using. I could actually read multiple times instead of reading once. Also, I don't know, maybe it's possible that even if I use a big buffer, the read may not use the full buffer even if there's data for the size of the buffer or even more. The buffer may still be less filled probably. I don't know for sure though, gotta check more on it
+
+```go
+buf := make([]byte, 512)
+```
+
+I used 512 bytes thinking I will need only few bytes for PONG, that is `+PONG\r\n` which is 7 bytes and if there is any other response, like an error with the starting byte `-` or something else, we might need a bit more and I assumed I won't need anything more than 512 bytes for all possible responses. But yeah, I might be wrong
+
+I could have instead also used a smaller buffer and read multiple times. That way, I could use lesser memory I think, lesser than what's required. Like, if the response is gonna be just 7 bytes, I don't need 512 bytes. Atleast PONG is the response in majority cases. I could actually just read the first byte first, and then decide how allocate more size to the buffer and read. Like, I could use 50 or 100 bytes if there's a `-` or something and put the `conn.Read` in a loop and loop until 0 bytes are read into the buffer, which is nothing is read into the buffer
+
+Currently, I just read once and I don't even check the number of bytes read
+
+```go
+_, err = conn.Read(buf)
+```
+
+I also am not sure if number of bytes read is the output on the left, apart from error. I need to find official doc for that [TODO] but based on intuition and based on past experiences, I remember that it's common to return number of bytes read in such cases
+
+Also, for PING, I could have just had it return error in case of an error and not return anything else, like `PONG` which I return now as a string for `Ping()`
+
+---
+
+Anyways, I'm not planning on building some very efficient and perfect Redis Client. I'm okay with something that works, with duct tape and glue. As long as I can try it out and understand how Redis Client libraries work, how Redis Client Server communication happens :)
+
+I'm currently reading how the error stuff works
+
+https://redis.io/topics/protocol#resp-errors
+
+I'm planning to write something like a `RawCommand` function which can run any command given the command string and then try this error thing, hmm
+
+---
+
+By the way, till now, I have been using `Ping(conn)` which is a weird thing to do, because, usually when you initialize a client library, you get a thing upon which you can call methods, so, something like -
+
+```go
+client, err := Connect("localhost", 6379)
+
+if err != nil {
+	return fmt.Errorf("Connection to Redis Server failed: %v", err)
+	
+}
+
+pingResponse, err := client.Ping()
+```
+
+But currently it looks like `Ping(conn)`. I'll change it soon, at some point. Or maybe now :P and then do the `RawCommand` or `ExecRawCommand` or `ExecCommand` or `ExecuteCommand` or `ExecRedisCommand` or `ExecuteRedisCommand`. But yeah, it's already a redis client library, so I guess Redis in the name is not needed!
+
+---
+
+I made the change to use `redisClient.Ping`. Also, `client` is conflicting with the package name I used in the package, hmm. Tricky stuff!
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestPing
+2021/08/22 15:01:18 Starting container id: 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Waiting for container id 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Container is ready id: 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Starting container id: 1af70208baa0 image: redis:latest
+2021/08/22 15:01:18 Waiting for container id 1af70208baa0 image: redis:latest
+2021/08/22 15:01:19 Container is ready id: 1af70208baa0 image: redis:latest
+--- PASS: TestPing (1.02s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	1.491s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestPing
+2021/08/22 15:01:18 Starting container id: 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Waiting for container id 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Container is ready id: 1dabf031e7ca image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:01:18 Starting container id: 1af70208baa0 image: redis:latest
+2021/08/22 15:01:18 Waiting for container id 1af70208baa0 image: redis:latest
+2021/08/22 15:01:19 Container is ready id: 1af70208baa0 image: redis:latest
+--- PASS: TestPing (1.02s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
+
+It looks like this - the client -
+
+```go
+type RedisClient struct {
+	conn net.Conn
+}
+```
+
+It encapsulates the previously existing connection. There's an extra Close method for the client
+
+```go
+func (client *RedisClient) Close() error {
+	return client.conn.Close()
+}
+```
+
+```go
+pingResponse, err := redisClient.Ping()
+```
+
+No passing connection to `Ping` now. And it's all methods now, not functions (package functions)
