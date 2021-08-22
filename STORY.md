@@ -2492,3 +2492,307 @@ pingResponse, err := redisClient.Ping()
 ```
 
 No passing connection to `Ping` now. And it's all methods now, not functions (package functions)
+
+---
+
+I just made ping test as a sub test
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestClient
+2021/08/22 15:32:45 Starting container id: 0bc9ed8335ba image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:32:45 Waiting for container id 0bc9ed8335ba image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:32:45 Container is ready id: 0bc9ed8335ba image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:32:45 Starting container id: 3d5a1d396001 image: redis:latest
+2021/08/22 15:32:46 Waiting for container id 3d5a1d396001 image: redis:latest
+2021/08/22 15:32:46 Container is ready id: 3d5a1d396001 image: redis:latest
+=== RUN   TestClient/TestPing
+--- PASS: TestClient (1.02s)
+    --- PASS: TestClient/TestPing (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	1.438s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+```
+
+I wanted to run redis server once and run all the tests against it, instead of running a redis server for each test
+
+So yeah, next thing is `ExecCommand` I guess
+
+But the hard part is, what is it's output? 🤔 Hmm. I guess for now I'll keep it as string. Gotta think more on it
+
+Maybe I'll keep it as empty interface later? Let's see
+
+This because each command has it's own response type depending on the type of operation. So yeah, tricky thing to implement a generic `ExecuteCommand`
+
+Cool ! I wrote the code and then also wrote the test. Yeah. Not Test Driven Development :P
+
+I actually didn't finish writing the code. I was wondering what kind of test to write. Anyways, this is what I did -
+
+```go
+t.Run("TestExecuteCommand", func(t *testing.T) {
+	t.Run("Running Non existent command", func(t *testing.T) {
+		response, err := redisClient.ExecuteCommand("BLAH")
+		if err == nil {
+			t.Errorf("Expected errors in executing BLAH command but got response: %v", response)
+		}
+
+		if response != "" {
+			t.Errorf("Expected empty string as reply for BLAH but got: %v", response)
+		}
+	})
+})
+```
+
+```go
+func (client *RedisClient) ExecuteCommand(command string) (string, error) {
+	conn := client.conn
+
+	redisCommand := fmt.Sprintf("%v\r\n", command)
+
+	n, err := conn.Write([]byte(redisCommand))
+
+	if err != nil {
+		return "", fmt.Errorf("error while executing redis command: %v", err)
+	}
+
+	if n != len(redisCommand) {
+		return "", fmt.Errorf("error while executing redis command. not all bytes were written to connection. expected to write: %v bytes, but wrote: %v bytes", len(redisCommand), n)
+	}
+
+	buf := make([]byte, 512)
+
+	_, err = conn.Read(buf)
+
+	if err != nil {
+		return "", fmt.Errorf("error while executing redis command: %v", err)
+	}
+
+	return string(buf), nil
+}
+```
+
+Initially I returned `""` instead of `string(buf)` and then I changed it. The output I got was this -
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestClient
+2021/08/22 15:42:05 Starting container id: a7d8f165e716 image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:05 Waiting for container id a7d8f165e716 image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:05 Container is ready id: a7d8f165e716 image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:06 Starting container id: d7ab25ae78b4 image: redis:latest
+2021/08/22 15:42:06 Waiting for container id d7ab25ae78b4 image: redis:latest
+2021/08/22 15:42:06 Container is ready id: d7ab25ae78b4 image: redis:latest
+=== RUN   TestClient/TestPing
+=== RUN   TestClient/TestExecuteCommand
+=== RUN   TestClient/TestExecuteCommand/Running_Non_existent_command
+    client_test.go:69: Expected errors in executing BLAH command but got response: 
+--- FAIL: TestClient (1.05s)
+    --- PASS: TestClient/TestPing (0.00s)
+    --- FAIL: TestClient/TestExecuteCommand (0.00s)
+        --- FAIL: TestClient/TestExecuteCommand/Running_Non_existent_command (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	1.465s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestClient
+2021/08/22 15:42:48 Starting container id: 70d49413879a image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:48 Waiting for container id 70d49413879a image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:48 Container is ready id: 70d49413879a image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 15:42:48 Starting container id: 51952c093de1 image: redis:latest
+2021/08/22 15:42:48 Waiting for container id 51952c093de1 image: redis:latest
+2021/08/22 15:42:48 Container is ready id: 51952c093de1 image: redis:latest
+=== RUN   TestClient/TestPing
+=== RUN   TestClient/TestExecuteCommand
+=== RUN   TestClient/TestExecuteCommand/Running_Non_existent_command
+    client_test.go:69: Expected errors in executing BLAH command but got response: -ERR unknown command `BLAH`, with args beginning with: 
+        
+    client_test.go:73: Expected empty string as reply for BLAH but got: -ERR unknown command `BLAH`, with args beginning with: 
+        
+--- FAIL: TestClient (1.03s)
+    --- PASS: TestClient/TestPing (0.00s)
+    --- FAIL: TestClient/TestExecuteCommand (0.00s)
+        --- FAIL: TestClient/TestExecuteCommand/Running_Non_existent_command (0.00s)
+FAIL
+FAIL	github.com/karuppiah7890/redis-client-go	1.343s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+FAIL
+make: *** [test] Error 1
+redis-client-go $ 
+```
+
+Interesting to see the error from Redis ! :D
+
+```
+client_test.go:69: Expected errors in executing BLAH command but got response: -ERR unknown command `BLAH`, with args beginning with: 
+        
+client_test.go:73: Expected empty string as reply for BLAH but got: -ERR unknown command `BLAH`, with args beginning with: 
+```
+
+It's just that it's not returned as an error in the code but instead returned as a normal response. So, I gotta fix that! :)
+
+I need to detect the `-` first byte and also remove the `\r\n`! :)
+
+This all seems easy. Lol. The real craziness is writing the client library perfectly for production use case and also supporting stuff like auth and pipelining and what not. Connection pools too!!! And Redis Cluster too, yeah!
+
+---
+
+I was just thinking a bit about AUTH randomly and was wondering how that would work. I mean, like HTTP would we have to send auth details for every command? Hmm
+
+Then I thought - maybe it's a long lived connection and we just send once and that's it, every other command that comes after is run with the idea that we are authenticated. Meaning the server remembers. This is like one connection, one long lived connection, unlike HTTP I guess
+
+So I tried to check that. For that I wanted to run the server with auth. I did have some config files, but I figured I can run it with ease with just one configuration. But I made a mistake, lol. Instead of using `requirepass` I was using `masterauth` and wondering why I can PING and do GET in redis-cli without AUTH
+
+```bash
+$ redis-server -h
+Usage: ./redis-server [/path/to/redis.conf] [options] [-]
+       ./redis-server - (read config from stdin)
+       ./redis-server -v or --version
+       ./redis-server -h or --help
+       ./redis-server --test-memory <megabytes>
+
+Examples:
+       ./redis-server (run the server with default conf)
+       ./redis-server /etc/redis/6379.conf
+       ./redis-server --port 7777
+       ./redis-server --port 7777 --replicaof 127.0.0.1 8888
+       ./redis-server /etc/myredis.conf --loglevel verbose -
+       ./redis-server /etc/myredis.conf --loglevel verbose
+
+Sentinel mode:
+       ./redis-server /etc/sentinel.conf --sentinel
+```
+
+```bash
+redis-server --masterauth a_strong_password
+```
+
+Tried some more ways too, reading config from standard input (stdin) and that too didn't work because I was using the wrong configuration - the wrong key
+
+```bash
+$ redis-server -
+45683:C 22 Aug 2021 16:22:01.622 # Reading config from stdin
+masterauth a_strong_password
+45683:C 22 Aug 2021 16:22:09.953 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+45683:C 22 Aug 2021 16:22:09.953 # Redis version=6.2.5, bits=64, commit=00000000, modified=0, pid=45683, just started
+45683:C 22 Aug 2021 16:22:09.953 # Configuration loaded
+45683:M 22 Aug 2021 16:22:09.954 * Increased maximum number of open files to 10032 (it was originally set to 2560).
+45683:M 22 Aug 2021 16:22:09.954 * monotonic clock: POSIX clock_gettime
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 6.2.5 (00000000/0) 64 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                  
+ (    '      ,       .-`  | `,    )     Running in standalone mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+ |    `-._   `._    /     _.-'    |     PID: 45683
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           https://redis.io       
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+45683:M 22 Aug 2021 16:22:09.955 # Server initialized
+45683:M 22 Aug 2021 16:22:09.956 * Loading RDB produced by version 6.2.5
+45683:M 22 Aug 2021 16:22:09.956 * RDB age 207 seconds
+45683:M 22 Aug 2021 16:22:09.956 * RDB memory usage when created 0.98 Mb
+45683:M 22 Aug 2021 16:22:09.956 * DB loaded from disk: 0.000 seconds
+45683:M 22 Aug 2021 16:22:09.956 * Ready to accept connections
+^C45683:signal-handler (1629629530) Received SIGINT scheduling shutdown...
+45683:M 22 Aug 2021 16:22:10.679 # User requested shutdown...
+45683:M 22 Aug 2021 16:22:10.679 * Saving the final RDB snapshot before exiting.
+45683:M 22 Aug 2021 16:22:10.681 * DB saved on disk
+45683:M 22 Aug 2021 16:22:10.681 # Redis is now ready to exit, bye bye...
+```
+
+Finally I realized and then made it work with `requirepass`
+
+```bash
+$ redis-server --requirepass a_strong_password
+45765:C 22 Aug 2021 16:23:10.008 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+45765:C 22 Aug 2021 16:23:10.008 # Redis version=6.2.5, bits=64, commit=00000000, modified=0, pid=45765, just started
+45765:C 22 Aug 2021 16:23:10.008 # Configuration loaded
+45765:M 22 Aug 2021 16:23:10.009 * Increased maximum number of open files to 10032 (it was originally set to 2560).
+45765:M 22 Aug 2021 16:23:10.009 * monotonic clock: POSIX clock_gettime
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 6.2.5 (00000000/0) 64 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                  
+ (    '      ,       .-`  | `,    )     Running in standalone mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+ |    `-._   `._    /     _.-'    |     PID: 45765
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           https://redis.io       
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+45765:M 22 Aug 2021 16:23:10.010 # Server initialized
+45765:M 22 Aug 2021 16:23:10.011 * Loading RDB produced by version 6.2.5
+45765:M 22 Aug 2021 16:23:10.011 * RDB age 60 seconds
+45765:M 22 Aug 2021 16:23:10.011 * RDB memory usage when created 0.98 Mb
+45765:M 22 Aug 2021 16:23:10.011 * DB loaded from disk: 0.000 seconds
+45765:M 22 Aug 2021 16:23:10.011 * Ready to accept connections
+^C45765:signal-handler (1629629590) Received SIGINT scheduling shutdown...
+45765:M 22 Aug 2021 16:23:10.727 # User requested shutdown...
+45765:M 22 Aug 2021 16:23:10.727 * Saving the final RDB snapshot before exiting.
+45765:M 22 Aug 2021 16:23:10.729 * DB saved on disk
+45765:M 22 Aug 2021 16:23:10.729 # Redis is now ready to exit, bye bye...
+```
+
+While running redis-server with `requirepass`, this is what I noticed
+
+```bash
+$ redis-cli
+127.0.0.1:6379> get food
+(error) NOAUTH Authentication required.
+127.0.0.1:6379> ping
+(error) NOAUTH Authentication required.
+127.0.0.1:6379> 
+
+$ printf "PING\r\n" | nc localhost 6379
+-NOAUTH Authentication required.
+
+$ printf "PING\r\nGET food\r\n" | nc localhost 6379
+-NOAUTH Authentication required.
+-NOAUTH Authentication required.
+
+$ printf "AUTH a_strong_password\r\nPING\r\nGET food\r\n" | nc localhost 6379
++OK
++PONG
+$-1
+
+$ printf "PING\r\nGET food\r\n" | nc localhost 6379
+-NOAUTH Authentication required.
+-NOAUTH Authentication required.
+```
+
+Note how if we authenticate just once, the commands that come next are authenticated and run? So, given a connection, we just need to auth once, and that's it. New connection? Auth in that connection? Connection Loss? I don't know, maybe we still have to auth
+
+But I don't know how this whole thing works, I mean, if server remembers that we are authenticated, what happens when the password changes? Say someone changed requirepass value. I don't know if that's possible, maybe it is, without restarting the server. And what about ACL? I don't know, I have to check. But if someone authenticate with a password and keeps using the authenticated connection for a long time and auth secret changes in the course of time of the connection, I'm wondering if re-auth is needed or not
+
+Also, if these are all just a long lived connection, how long can the connection live is also a question I was wondering, hmm
+
+
