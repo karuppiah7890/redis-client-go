@@ -2795,4 +2795,8 @@ But I don't know how this whole thing works, I mean, if server remembers that we
 
 Also, if these are all just a long lived connection, how long can the connection live is also a question I was wondering, hmm
 
+---
 
+I was just reading about how integer replies / responses come from Redis
+
+https://redis.io/topics/protocol#resp-integers
