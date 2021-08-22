@@ -35,7 +35,7 @@ func TestConnect(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	ctx := context.Background()
-	redisC, err := internal.StartRedisServer(ctx)
+	redisC, host, port, err := internal.StartRedisServer(ctx)
 	if err != nil {
 		t.Errorf("failed to start the redis container: %v", err)
 		return
@@ -43,21 +43,7 @@ func TestPing(t *testing.T) {
 
 	defer redisC.Terminate(ctx)
 
-	// Maybe move this logic inside StartRedisServer
-	host, err := redisC.Host(ctx)
-	if err != nil {
-		t.Errorf("failed to get the redis host: %v", err)
-		return
-	}
-
-	// Maybe move this logic inside StartRedisServer
-	port, err := redisC.MappedPort(ctx, "6379")
-	if err != nil {
-		t.Errorf("failed to get the redis port: %v", err)
-		return
-	}
-
-	conn, err := client.Connect(host, port.Int())
+	conn, err := client.Connect(host, port)
 	if err != nil {
 		t.Errorf("Connection to Redis Server failed: %v", err)
 		return
