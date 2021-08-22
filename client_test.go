@@ -49,5 +49,14 @@ func TestPing(t *testing.T) {
 		return
 	}
 
-	conn.Close()
+	defer conn.Close()
+
+	pingResponse, err := client.Ping(conn)
+	if err != nil {
+		t.Errorf("Expected no errors in PING but got: %v", err)
+	}
+
+	if pingResponse != "PONG" {
+		t.Errorf("Expected PONG as reply for PING but got: %v", pingResponse)
+	}
 }
