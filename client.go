@@ -6,7 +6,11 @@ import (
 	"net"
 )
 
-func Connect(host string, port int) (net.Conn, error) {
+type RedisClient struct {
+	conn net.Conn
+}
+
+func Connect(host string, port int) (*RedisClient, error) {
 	redisHost := fmt.Sprintf("%s:%v", host, port)
 
 	conn, err := net.Dial("tcp", redisHost)
@@ -14,10 +18,15 @@ func Connect(host string, port int) (net.Conn, error) {
 		return nil, fmt.Errorf("error connecting to %s: %v", redisHost, err)
 	}
 
-	return conn, err
+	return &RedisClient{conn: conn}, err
 }
 
-func Ping(conn net.Conn) (string, error) {
+func (client *RedisClient) Close() error {
+	return client.conn.Close()
+}
+
+func (client *RedisClient) Ping() (string, error) {
+	conn := client.conn
 	ping := "PING\r\n"
 	n, err := conn.Write([]byte(ping))
 

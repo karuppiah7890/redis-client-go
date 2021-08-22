@@ -20,12 +20,12 @@ func TestConnect(t *testing.T) {
 	}
 	defer server.Stop()
 
-	conn, err := client.Connect(host, port)
+	redisClient, err := client.Connect(host, port)
 	if err != nil {
 		t.Errorf("Connection to Redis Server failed: %v", err)
 	}
 
-	conn.Close()
+	redisClient.Close()
 	numberOfConnectionsReceived := server.NumberOfConnectionsReceived()
 
 	if numberOfConnectionsReceived != 1 {
@@ -43,15 +43,15 @@ func TestPing(t *testing.T) {
 
 	defer redisC.Terminate(ctx)
 
-	conn, err := client.Connect(host, port)
+	redisClient, err := client.Connect(host, port)
 	if err != nil {
 		t.Errorf("Connection to Redis Server failed: %v", err)
 		return
 	}
 
-	defer conn.Close()
+	defer redisClient.Close()
 
-	pingResponse, err := client.Ping(conn)
+	pingResponse, err := redisClient.Ping()
 	if err != nil {
 		t.Errorf("Expected no errors in PING but got: %v", err)
 	}
