@@ -33,7 +33,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-func TestPing(t *testing.T) {
+func TestClient(t *testing.T) {
 	ctx := context.Background()
 	redisC, host, port, err := internal.StartRedisServer(ctx)
 	if err != nil {
@@ -51,12 +51,14 @@ func TestPing(t *testing.T) {
 
 	defer redisClient.Close()
 
-	pingResponse, err := redisClient.Ping()
-	if err != nil {
-		t.Errorf("Expected no errors in PING but got: %v", err)
-	}
+	t.Run("TestPing", func(t *testing.T) {
+		pingResponse, err := redisClient.Ping()
+		if err != nil {
+			t.Errorf("Expected no errors in PING but got: %v", err)
+		}
 
-	if pingResponse != "PONG" {
-		t.Errorf("Expected PONG as reply for PING but got: %v", pingResponse)
-	}
+		if pingResponse != "PONG" {
+			t.Errorf("Expected PONG as reply for PING but got: %v", pingResponse)
+		}
+	})
 }
