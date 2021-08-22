@@ -2800,3 +2800,73 @@ Also, if these are all just a long lived connection, how long can the connection
 I was just reading about how integer replies / responses come from Redis
 
 https://redis.io/topics/protocol#resp-integers
+
+---
+
+I just made the `ExecuteCommand` test for invalid command work with error response and made it return error
+
+```go
+buf := make([]byte, 512)
+
+_, err = conn.Read(buf)
+
+if err != nil {
+	return "", fmt.Errorf("error while executing redis command: %v", err)
+}
+
+if buf[0] == '-' {
+	return "", fmt.Errorf("error while executing redis command: %v", buf[1:])
+}
+```
+
+But yeah, the error response maybe too long. I just initialized the `buf` buffer with 512 bytes, lol
+
+```bash
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestClient
+2021/08/22 22:47:44 Starting container id: 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Waiting for container id 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Container is ready id: 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Starting container id: 777e33863aba image: redis:latest
+2021/08/22 22:47:45 Waiting for container id 777e33863aba image: redis:latest
+2021/08/22 22:47:45 Container is ready id: 777e33863aba image: redis:latest
+=== RUN   TestClient/TestPing
+=== RUN   TestClient/TestExecuteCommand
+=== RUN   TestClient/TestExecuteCommand/Running_Non_existent_command
+--- PASS: TestClient (1.05s)
+    --- PASS: TestClient/TestPing (0.00s)
+    --- PASS: TestClient/TestExecuteCommand (0.00s)
+        --- PASS: TestClient/TestExecuteCommand/Running_Non_existent_command (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	1.440s
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+
+redis-client-go $ 
+redis-client-go $ make test
+go test -v ./...
+=== RUN   TestConnect
+    client_test.go:13: 
+--- SKIP: TestConnect (0.00s)
+=== RUN   TestClient
+2021/08/22 22:47:44 Starting container id: 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Waiting for container id 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Container is ready id: 76979e54c46c image: quay.io/testcontainers/ryuk:0.2.3
+2021/08/22 22:47:45 Starting container id: 777e33863aba image: redis:latest
+2021/08/22 22:47:45 Waiting for container id 777e33863aba image: redis:latest
+2021/08/22 22:47:45 Container is ready id: 777e33863aba image: redis:latest
+=== RUN   TestClient/TestPing
+=== RUN   TestClient/TestExecuteCommand
+=== RUN   TestClient/TestExecuteCommand/Running_Non_existent_command
+--- PASS: TestClient (1.05s)
+    --- PASS: TestClient/TestPing (0.00s)
+    --- PASS: TestClient/TestExecuteCommand (0.00s)
+        --- PASS: TestClient/TestExecuteCommand/Running_Non_existent_command (0.00s)
+PASS
+ok  	github.com/karuppiah7890/redis-client-go	(cached)
+?   	github.com/karuppiah7890/redis-client-go/internal	[no test files]
+redis-client-go $ 
+```
