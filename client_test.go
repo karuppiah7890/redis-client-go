@@ -61,4 +61,17 @@ func TestClient(t *testing.T) {
 			t.Errorf("Expected PONG as reply for PING but got: %v", pingResponse)
 		}
 	})
+
+	t.Run("TestExecuteCommand", func(t *testing.T) {
+		t.Run("Running Non existent command", func(t *testing.T) {
+			response, err := redisClient.ExecuteCommand("BLAH")
+			if err == nil {
+				t.Errorf("Expected errors in executing BLAH command but got response: %v", response)
+			}
+
+			if response != "" {
+				t.Errorf("Expected empty string as reply for BLAH but got: %v", response)
+			}
+		})
+	})
 }

@@ -56,3 +56,33 @@ func (client *RedisClient) Ping() (string, error) {
 
 	return "PONG", nil
 }
+
+func (client *RedisClient) ExecuteCommand(command string) (string, error) {
+	conn := client.conn
+
+	redisCommand := fmt.Sprintf("%v\r\n", command)
+
+	n, err := conn.Write([]byte(redisCommand))
+
+	if err != nil {
+		return "", fmt.Errorf("error while executing redis command: %v", err)
+	}
+
+	if n != len(redisCommand) {
+		return "", fmt.Errorf("error while executing redis command. not all bytes were written to connection. expected to write: %v bytes, but wrote: %v bytes", len(redisCommand), n)
+	}
+
+	buf := make([]byte, 512)
+
+	_, err = conn.Read(buf)
+
+	if err != nil {
+		return "", fmt.Errorf("error while executing redis command: %v", err)
+	}
+
+	if buf[0] == '-' {
+		return "", fmt.Errorf("error while executing redis command: %v", buf[1:])
+	}
+
+	return string(buf), nil
+}
